@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>お散歩ルート作成 - 改善版</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        #map { height: 450px; width: 100%; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-green-50 to-blue-50 min-h-screen p-4">
+    
+    <!-- 開始画面 -->
+    <div id="startScreen" class="flex items-center justify-center min-h-screen">
+        <div class="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full">
+            <div class="text-center mb-8">
+                <div class="bg-green-500 p-4 rounded-2xl inline-block mb-4">
+                    <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                    </svg>
+                </div>
+                <h1 class="text-3xl font-bold mb-2">お散歩ルート作成</h1>
+                <p class="text-gray-500">改善版 - 見やすい地図</p>
+            </div>
+            
+            <div class="space-y-3">
+                <button onclick="getLocation()" class="w-full bg-green-500 text-white font-bold py-4 rounded-xl hover:bg-green-600 transition-colors">
+                    📍 現在地を使う
+                </button>
+                
+                <button onclick="startDemo()" class="w-full bg-gray-600 text-white font-bold py-4 rounded-xl hover:bg-gray-700 transition-colors">
+                    🎮 デモモードで試す（東京駅）
+                </button>
+            </div>
+            
+            <div class="mt-6 p-4 bg-blue-50 rounded-lg">
+                <p class="text-sm text-blue-800">
+                    <strong>✨ 新機能:</strong> Googleマップ連携・見やすい地図・正確な距離
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- メイン画面 -->
+    <div id="mainScreen" class="max-w-4xl mx-auto space-y-6 hidden">
+        
+        <!-- ヘッダー -->
+        <div class="bg-white rounded-2xl shadow-lg p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-2xl font-bold">お散歩ルート作成</h1>
+                    <p class="text-sm text-gray-500">改善版 - 準備完了！</p>
+                </div>
+                <button onclick="toggleSettings()" class="p-3 rounded-xl hover:bg-gray-100">
+                    ⚙️
+                </button>
+            </div>
+        </div>
+
+        <!-- 設定 -->
+        <div id="settingsPanel" class="bg-white rounded-2xl shadow-lg p-6 hidden">
+            <h2 class="text-lg font-bold mb-4">マップスタイル</h2>
+            <div class="space-y-3">
+                <label class="flex items-center gap-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100">
+                    <input type="radio" name="mapStyle" value="voyager" checked class="w-5 h-5">
+                    <div>
+                        <div class="font-medium">標準（おすすめ）</div>
+                        <div class="text-sm text-gray-500">見やすいデザイン</div>
+                    </div>
+                </label>
+                
+                <label class="flex items-center gap-3 p-4 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100">
+                    <input type="radio" name="mapStyle" value="osm" class="w-5 h-5">
+                    <div>
+                        <div class="font-medium">詳細</div>
+                        <div class="text-sm text-gray-500">情報量多め</div>
+                    </div>
+                </label>
+            </div>
+        </div>
+
+        <!-- 歩数設定 -->
+        <div class="bg-white rounded-2xl shadow-lg p-6">
+            <h2 class="font-medium mb-3">目標歩数</h2>
+            <div class="flex items-center gap-4">
+                <input type="range" id="stepsRange" min="1000" max="20000" step="500" value="5000" 
+                    class="flex-1 h-2 bg-gray-200 rounded-lg cursor-pointer accent-green-500"
+                    oninput="updateSteps(this.value)">
+                <div class="text-right min-w-32">
+                    <div id="stepsDisplay" class="text-3xl font-bold text-green-600">5,000</div>
+                    <div id="distanceDisplay" class="text-sm text-gray-500">歩 (3.5km)</div>
+                </div>
+            </div>
+            
+            <div class="flex gap-2 mt-4">
+                <button onclick="setSteps(3000)" class="flex-1 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium">3千歩</button>
+                <button onclick="setSteps(5000)" class="flex-1 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium">5千歩</button>
+                <button onclick="setSteps(10000)" class="flex-1 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium">1万歩</button>
+            </div>
+        </div>
+
+        <!-- ルート作成ボタン -->
+        <button onclick="createRoute()" id="createRouteBtn" class="w-full bg-gradient-to-r from-green-500 to-green-600 text-white font-bold py-4 rounded-xl hover:shadow-xl transition-all">
+            🗺️ ルートを作成
+        </button>
+
+        <!-- 地図 -->
+        <div class="bg-white rounded-2xl shadow-lg p-6">
+            <h2 class="text-lg font-bold mb-4">📍 地図</h2>
+            <div id="map" class="rounded-xl border-2 border-gray-200"></div>
+        </div>
+
+        <!-- ルート情報 -->
+        <div id="routeInfo" class="bg-white rounded-2xl shadow-lg p-6 hidden">
+            <h2 class="text-lg font-bold mb-4">📊 ルート情報</h2>
+            
+            <div class="grid grid-cols-3 gap-4 mb-4">
+                <div class="bg-green-50 p-4 rounded-xl text-center">
+                    <div id="routeDistance" class="text-2xl font-bold text-green-600">0</div>
+                    <div class="text-sm text-gray-600">km</div>
+                </div>
+                <div class="bg-blue-50 p-4 rounded-xl text-center">
+                    <div id="routeSteps" class="text-2xl font-bold text-blue-600">0</div>
+                    <div class="text-sm text-gray-600">歩</div>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-xl text-center">
+                    <div id="routeTime" class="text-2xl font-bold text-purple-600">0</div>
+                    <div class="text-sm text-gray-600">分</div>
+                </div>
+            </div>
+
+            <!-- Googleマップで開くボタン -->
+            <button id="openInGoogleMaps" onclick="openInGoogleMaps()" class="w-full bg-blue-500 text-white font-bold py-3 rounded-xl hover:bg-blue-600 transition-colors mb-3">
+                📱 Googleマップで開く
+            </button>
+
+            <div id="routePreferences" class="text-center text-sm text-gray-500"></div>
+        </div>
+
+        <!-- ヒント -->
+        <div class="bg-white rounded-2xl shadow-lg p-6">
+            <h3 class="font-bold mb-3">💡 改善点</h3>
+            <ul class="space-y-2 text-sm text-gray-600">
+                <li>✅ より見やすい地図デザイン</li>
+                <li>✅ 実際の歩数に近い距離のルート生成</li>
+                <li>✅ Googleマップアプリと連携</li>
+            </ul>
+        </div>
+
+    </div>
+
+    <script>
+        let map = null;
+        let userLocation = null;
+        let currentSteps = 5000;
+        let routeLayer = null;
+        let currentRoute = null;
+
+        // デモモード開始
+        function startDemo() {
+            console.log('デモモード開始');
+            userLocation = { lat: 35.6812, lng: 139.7671 };
+            showMainScreen();
+        }
+
+        // 現在地取得
+        function getLocation() {
+            console.log('現在地取得開始');
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        console.log('位置情報取得成功');
+                        userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                        showMainScreen();
+                    },
+                    (error) => {
+                        console.error('位置情報取得エラー', error);
+                        alert('位置情報取得に失敗しました。デモモードをお試しください。');
+                    }
+                );
+            } else {
+                alert('このブラウザは位置情報に対応していません');
+            }
+        }
+
+        // メイン画面を表示
+        function showMainScreen() {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('mainScreen').classList.remove('hidden');
+            
+            setTimeout(() => {
+                console.log('地図初期化開始', userLocation);
+                map = window.L.map('map').setView([userLocation.lat, userLocation.lng], 15);
+                
+                // 見やすいマップスタイル（CartoDB Voyager）
+                window.L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                    attribution: '© OpenStreetMap contributors © CARTO',
+                    maxZoom: 19
+                }).addTo(map);
+
+                window.L.marker([userLocation.lat, userLocation.lng])
+                    .addTo(map)
+                    .bindPopup('📍 現在地')
+                    .openPopup();
+                
+                console.log('地図初期化完了');
+            }, 100);
+        }
+
+        // 設定パネル切り替え
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        // 歩数更新
+        function updateSteps(value) {
+            currentSteps = parseInt(value);
+            document.getElementById('stepsDisplay').textContent = currentSteps.toLocaleString();
+            const distance = ((currentSteps * 0.7) / 1000).toFixed(1);
+            document.getElementById('distanceDisplay').textContent = `歩 (${distance}km)`;
+        }
+
+        // 歩数設定
+        function setSteps(value) {
+            currentSteps = value;
+            document.getElementById('stepsRange').value = value;
+            updateSteps(value);
+        }
+
+        // ルート作成
+        async function createRoute() {
+            if (!map || !userLocation) {
+                alert('地図がまだ準備できていません');
+                return;
+            }
+
+            console.log('ルート作成開始');
+
+            const button = document.getElementById('createRouteBtn');
+            button.disabled = true;
+            button.textContent = '⏳ ルート作成中...';
+
+            // 古いルートを削除
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+            }
+
+            try {
+                // 目標距離を計算（km）
+                const targetDistance = (currentSteps * 0.7) / 1000;
+                
+                // より正確なウェイポイント生成（距離に合わせて調整）
+                const waypoints = generateBetterWaypoints(userLocation, targetDistance);
+                
+                // OSRM APIを使ってルートを取得
+                const route = await fetchRoute(waypoints);
+                
+                if (route) {
+                    // 現在のルートを保存（Googleマップ連携用）
+                    currentRoute = route;
+
+                    // 地図にルート描画
+                    const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                    routeLayer = window.L.polyline(coordinates, { 
+                        color: '#22c55e', 
+                        weight: 6,
+                        opacity: 0.8
+                    }).addTo(map);
+
+                    map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+
+                    // ルート情報表示
+                    const actualDistance = (route.distance / 1000).toFixed(1);
+                    const actualSteps = Math.round((route.distance / 1000) / 0.7 * 1000);
+                    const time = Math.round(route.duration / 60);
+                    
+                    document.getElementById('routeDistance').textContent = actualDistance;
+                    document.getElementById('routeSteps').textContent = actualSteps.toLocaleString();
+                    document.getElementById('routeTime').textContent = time;
+                    
+                    document.getElementById('routeInfo').classList.remove('hidden');
+                    
+                    console.log('ルート作成完了 - 距離:', actualDistance, 'km');
+                } else {
+                    alert('ルートの作成に失敗しました。別の歩数で試してください。');
+                }
+            } catch (error) {
+                console.error('ルート作成エラー:', error);
+                alert('ルートの作成中にエラーが発生しました: ' + error.message);
+            } finally {
+                button.disabled = false;
+                button.textContent = '🗺️ ルートを作成';
+            }
+        }
+
+        // 改善されたウェイポイント生成（より正確な距離）
+        function generateBetterWaypoints(center, targetDistanceKm) {
+            const waypoints = [center];
+            
+            // 距離に応じてウェイポイント数を調整
+            let numWaypoints = 4;
+            if (targetDistanceKm > 5) numWaypoints = 6;
+            if (targetDistanceKm > 10) numWaypoints = 8;
+            
+            // 実際の距離に近づけるため、半径を大きめに
+            const radiusKm = targetDistanceKm / (Math.PI * 1.5);
+            
+            for (let i = 0; i < numWaypoints; i++) {
+                const angle = (Math.PI * 2 / numWaypoints) * i + Math.random() * 0.3;
+                const distance = radiusKm * (0.9 + Math.random() * 0.2);
+                
+                const lat = center.lat + (distance / 111) * Math.cos(angle);
+                const lng = center.lng + (distance / (111 * Math.cos(center.lat * Math.PI / 180))) * Math.sin(angle);
+                
+                waypoints.push({ lat, lng });
+            }
+            
+            waypoints.push(center);
+            return waypoints;
+        }
+
+        // OSRM APIでルートを取得
+        async function fetchRoute(waypoints) {
+            const coordinates = waypoints.map(w => `${w.lng},${w.lat}`).join(';');
+            const url = `https://router.project-osrm.org/route/v1/foot/${coordinates}?overview=full&geometries=geojson`;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                    return data.routes[0];
+                }
+                return null;
+            } catch (error) {
+                console.error('OSRM API エラー:', error);
+                return null;
+            }
+        }
+
+        // Googleマップで開く
+        function openInGoogleMaps() {
+            if (!currentRoute || !userLocation) {
+                alert('まずルートを作成してください');
+                return;
+            }
+
+            // ルートの座標を取得（間引いて10ポイント程度に）
+            const coords = currentRoute.geometry.coordinates;
+            const step = Math.max(1, Math.floor(coords.length / 8));
+            const waypoints = [];
+            
+            for (let i = step; i < coords.length - step; i += step) {
+                if (waypoints.length < 8) { // Googleマップは最大9ウェイポイント（開始・終了除く）
+                    waypoints.push(`${coords[i][1]},${coords[i][0]}`);
+                }
+            }
+
+            // Googleマップのディレクションリンクを生成
+            const origin = `${userLocation.lat},${userLocation.lng}`;
+            const destination = origin;
+            const waypointsParam = waypoints.join('|');
+            
+            // Googleマップアプリまたはウェブで開く
+            const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypointsParam}&travelmode=walking`;
+            
+            window.open(url, '_blank');
+        }
+
+        // マップスタイル変更
+        document.addEventListener('change', function(e) {
+            if (e.target.name === 'mapStyle' && map) {
+                const style = e.target.value;
+                map.eachLayer(layer => {
+                    if (layer instanceof L.TileLayer) {
+                        map.removeLayer(layer);
+                    }
+                });
+                
+                if (style === 'voyager') {
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                        attribution: '© OpenStreetMap contributors © CARTO'
+                    }).addTo(map);
+                } else {
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap contributors'
+                    }).addTo(map);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
